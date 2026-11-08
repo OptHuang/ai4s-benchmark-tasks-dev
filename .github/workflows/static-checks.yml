@@ -16,6 +16,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Check out the base branch for proposal links
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          git worktree add --detach "$RUNNER_TEMP/base" FETCH_HEAD
+          echo "AI4S_PROPOSAL_BASE_ROOT=$RUNNER_TEMP/base" >> "$GITHUB_ENV"
       - name: Proposal checks
         run: |
           mapfile -t proposals < <(find proposals -name '*.md' \

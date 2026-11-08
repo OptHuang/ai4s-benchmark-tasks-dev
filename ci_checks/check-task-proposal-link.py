@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Verify that a task points to an already-present, matching Markdown proposal."""
+"""Verify that a task points to an already-present, matching Markdown proposal.
+
+Pass the base branch checkout as --base-root (CI does), so a proposal added in
+the same PR as its task does not count as merged.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +12,8 @@ import re
 import sys
 import tomllib
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def proposal_value(text: str, label: str) -> str | None:
@@ -26,7 +32,7 @@ def proposal_value(text: str, label: str) -> str | None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("task_dir", type=Path)
-    parser.add_argument("--base-root", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument("--base-root", type=Path, default=REPO_ROOT)
     args = parser.parse_args()
     with (args.task_dir / "task.toml").open("rb") as handle:
         config = tomllib.load(handle)
@@ -44,8 +50,10 @@ def main() -> int:
     except ValueError:
         print("FAIL: proposal_path escapes proposals/")
         return 1
+    on_base = args.base_root.resolve() != REPO_ROOT
+    where = "the base branch" if on_base else "this checkout (merge status is checked in CI)"
     if not candidate.is_file():
-        print(f"FAIL: approved proposal is absent from base branch: {proposal_path}")
+        print(f"FAIL: proposal {proposal_path} is absent from {where}; merge the proposal PR first")
         return 1
     text = candidate.read_text(encoding="utf-8")
     expected = {
@@ -63,7 +71,7 @@ def main() -> int:
             failed = True
     if failed:
         return 1
-    print(f"PASS: {args.task_dir} links approved proposal {proposal_path}")
+    print(f"PASS: {args.task_dir} links proposal {proposal_path} on {where}")
     return 0
 
 

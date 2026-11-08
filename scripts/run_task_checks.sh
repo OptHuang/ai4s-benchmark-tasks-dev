@@ -58,5 +58,6 @@ else
   python3 ci_checks/check-ai4s-metadata.py --reference "$TASK_DIR" || failed=1
 fi
 
-python3 ci_checks/check-task-proposal-link.py "$TASK_DIR" --base-root "$ROOT" || failed=1
+python3 ci_checks/check-task-proposal-link.py "$TASK_DIR" \
+  --base-root "${AI4S_PROPOSAL_BASE_ROOT:-$ROOT}" || failed=1
 exit "$failed"
