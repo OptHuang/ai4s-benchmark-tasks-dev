@@ -4,9 +4,13 @@ on:
   pull_request:
     paths:
       - "tasks/**"
+      - "reference-tasks/**"
       - "task-template.toml"
       - "ci_checks/**"
       - "scripts/validate_task.sh"
+      - "scripts/run_task_checks.sh"
+      - "scripts/resolve_changed_tasks.py"
+      - ".github/workflows/validate-task.yml"
   workflow_dispatch:
     inputs:
       task_path:
@@ -16,6 +20,10 @@ on:
 
 permissions:
   contents: read
+
+concurrency:
+  group: validate-task-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   validate:
@@ -37,21 +45,50 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if [ "$EVENT_NAME" = workflow_dispatch ]; then
-            printf '%s\n' "$INPUT_PATH" > /tmp/task-paths
+            printf '%s\n' "${INPUT_PATH%/}" > /tmp/task-paths
           else
-            git diff --name-only "$BASE_SHA" "$HEAD_SHA" \
-              | awk -F/ '$1=="tasks" && NF>=4 {print $1"/"$2"/"$3"/"$4}' \
-              | sort -u > /tmp/task-paths
+            python3 scripts/resolve_changed_tasks.py --base "$BASE_SHA" --head "$HEAD_SHA" > /tmp/task-paths
           fi
           cat /tmp/task-paths
       - name: Static, oracle and nop validation
+        env:
+          AI4S_VALIDATION_OUT: ${{ runner.temp }}/ai4s-validation
         run: |
-          while IFS= read -r task; do
-            [ -n "$task" ] || continue
-            if [[ "$task" == reference-tasks/* ]]; then
-              bash scripts/run_task_checks.sh --reference "$task"
-            else
-              bash scripts/run_task_checks.sh "$task"
+          mapfile -t tasks < /tmp/task-paths
+          if ((${#tasks[@]} == 0)); then
+            echo "No task changes to validate." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "## Oracle / nop validation" >> "$GITHUB_STEP_SUMMARY"
+          failed=()
+          for task in "${tasks[@]}"; do
+            gpus=$(python3 -c 'import sys, tomllib; print(int(tomllib.load(open(sys.argv[1], "rb")).get("environment", {}).get("gpus") or 0))' "$task/task.toml")
+            if ((gpus > 0)); then
+              echo "::warning::$task requests $gpus GPU(s); the GitHub runner has none, so it needs manual validation"
+              echo "- \`$task\`: skipped, requests $gpus GPU(s) and needs manual validation" >> "$GITHUB_STEP_SUMMARY"
+              continue
             fi
-            bash scripts/validate_task.sh "$task"
-          done < /tmp/task-paths
+            mode=()
+            if [[ "$task" == reference-tasks/* ]]; then
+              mode=(--reference)
+            fi
+            if bash scripts/run_task_checks.sh "${mode[@]}" "$task" < /dev/null \
+              && bash scripts/validate_task.sh "$task" < /dev/null; then
+              echo "- \`$task\`: passed" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- \`$task\`: **failed**" >> "$GITHUB_STEP_SUMMARY"
+              failed+=("$task")
+            fi
+          done
+          if ((${#failed[@]})); then
+            printf '::error::validation failed for %s\n' "${failed[@]}"
+            exit 1
+          fi
+      - name: Upload Harbor runs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai4s-validation-${{ github.run_id }}
+          path: ${{ runner.temp }}/ai4s-validation
+          if-no-files-found: ignore
+          retention-days: 30

@@ -7,7 +7,12 @@ if [ "$#" -ne 1 ]; then
   exit 2
 fi
 TASK_DIR="${1%/}"
-OUT_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/ai4s-harbor-validation.XXXXXX")
+if [ -n "${AI4S_VALIDATION_OUT:-}" ]; then
+  OUT_ROOT="$AI4S_VALIDATION_OUT/${TASK_DIR//\//__}"
+  mkdir -p "$OUT_ROOT"
+else
+  OUT_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/ai4s-harbor-validation.XXXXXX")
+fi
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 
 task_type=$(python3 - "$TASK_DIR/task.toml" <<'PY'
