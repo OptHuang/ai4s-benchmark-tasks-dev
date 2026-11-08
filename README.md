@@ -131,20 +131,26 @@ For a non-engineering task:
 
 ```bash
 git checkout -b task/<task-slug>
-harbor tasks init <task-slug> \
+harbor tasks init <task-slug> --org ai4s-benchmark \
   --include-canary-strings \
   --metadata-template task-template.toml \
   -p tasks/<primary-domain>/
+python3 scripts/apply_canary.py tasks/<primary-domain>/<task-slug>
 ```
 
 For an Engineering Sciences task:
 
 ```bash
-harbor tasks init <task-slug> \
+harbor tasks init <task-slug> --org ai4s-benchmark \
   --include-canary-strings \
   --metadata-template task-template.toml \
   -p tasks/engineering-sciences/<secondary-discipline>/
+python3 scripts/apply_canary.py tasks/engineering-sciences/<secondary-discipline>/<task-slug>
 ```
+
+Harbor writes its own canary; `scripts/apply_canary.py` replaces it with the
+AI4S canary that `ci_checks/check-canary.sh` requires. Re-run it whenever you
+add files under `solution/`, `tests/` or `authoring/`.
 
 Follow the [Harbor task format](https://harborframework.com/docs/task-format)
 and the inline instructions in [task-template.toml](task-template.toml).

@@ -124,20 +124,26 @@ git diff --check
 
 ```bash
 git checkout -b task/<task-slug>
-harbor tasks init <task-slug> \
+harbor tasks init <task-slug> --org ai4s-benchmark \
   --include-canary-strings \
   --metadata-template task-template.toml \
   -p tasks/<primary-domain>/
+python3 scripts/apply_canary.py tasks/<primary-domain>/<task-slug>
 ```
 
 工程科学任务：
 
 ```bash
-harbor tasks init <task-slug> \
+harbor tasks init <task-slug> --org ai4s-benchmark \
   --include-canary-strings \
   --metadata-template task-template.toml \
   -p tasks/engineering-sciences/<secondary-discipline>/
+python3 scripts/apply_canary.py tasks/engineering-sciences/<secondary-discipline>/<task-slug>
 ```
+
+Harbor 会写入它自己的 canary；`scripts/apply_canary.py` 将其替换为
+`ci_checks/check-canary.sh` 要求的 AI4S canary。之后每次在 `solution/`、`tests/`
+或 `authoring/` 下新增文件，都请重新运行一次。
 
 请遵循 [Harbor 任务格式](https://harborframework.com/docs/task-format)和
 [task-template.toml](task-template.toml) 中的字段说明。

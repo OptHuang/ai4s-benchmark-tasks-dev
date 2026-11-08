@@ -142,6 +142,7 @@ if [ $FAILED -eq 1 ]; then
     echo "Please add the following to the top of each file:"
     echo "For .md files: <!-- $CANARY_STRING -->"
     echo "For other files: # $CANARY_STRING"
+    echo "Or run: python3 scripts/apply_canary.py <task-dir>"
     exit 1
 fi
 
