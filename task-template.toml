@@ -80,9 +80,10 @@ environment_mode = "separate"
 network_mode = "no-network"
 
 [agent]
-# 8h, required: every task is authored, reviewed and released with the same agent
-# budget (ci_checks/check-task-timeout.sh enforces exactly 28800). /run trials run on
-# Harbor Hub, so they are bounded by this budget rather than a CI runner's job limit.
+# 8h, required: every task is authored, reviewed and evaluated with the same agent
+# budget (ci_checks/check-task-timeout.sh enforces exactly 28800). Model trials are
+# run outside CI (see README), so they are bounded by this budget rather than a CI
+# runner's job limit.
 # instruction.md must end with "You have 28800 seconds to complete this task"
 # (ci_checks/check-instruction-suffix.sh).
 timeout_sec = 28800.0
@@ -96,14 +97,12 @@ gpus = 0
 # gpu_types = ["H100"]  # required if gpus >= 1; canonical Modal names only.
                          # Only the FIRST listed type is requested, so put the
                          # one you calibrated on first.
-# backend = "hosted"     # where /validate, /oracle, /run and /cheat run this task:
-                         # "hosted" is Harbor Hub (where release runs execute),
-                         # "modal" passes CI but cannot run there for now
-                         # (#1785). Omit for docker (the default).
-                         # REQUIRED if gpus >= 1 —
-                         # the GitHub runner has no GPU. Also set it if the task
-                         # exceeds that runner's 4 CPUs / ~16 GB RAM. Formerly
-                         # `validate_env`, which is still accepted.
+# backend = "hosted"     # REQUIRED if gpus >= 1 ("hosted" or "modal"): the
+                         # GitHub runner that validates tasks has no GPU. Omit
+                         # it for a CPU-only task, which must fit that runner's
+                         # 4 CPUs / ~16 GB (check-task-resources.sh). How GPU
+                         # tasks are validated here is not settled yet; ask the
+                         # Tech Group. Formerly `validate_env`, still accepted.
 # Network policy for the agent phase. This benchmark runs agents with open
 # internet, so this must be "public". (The older `allow_internet = true`
 # spelling is deprecated in harbor 0.20 and warns on load.)

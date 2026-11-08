@@ -3,12 +3,9 @@
 #
 #   1. A CPU-only task (gpus = 0) stays within a GitHub runner: at most
 #      MAX_CPUS CPUs and MAX_MEMORY_MB memory, in both [environment] and
-#      [verifier.environment]. Every merged task fits; a task that does not can
-#      only run on Harbor Hub, where each trial-hour is billed compute
-#      (PR 2053 asked for 16 CPUs / 32 GB, and one /run trials=3 cost $118).
+#      [verifier.environment], so CI can run its oracle and nop.
 #   2. backend = "hosted" or "modal" (or the legacy validate_env) is reserved for
-#      GPU tasks. A CPU task pinned to a paid backend bills every /validate and
-#      /oracle there, even when the runner would do.
+#      GPU tasks; see check-gpu-types.sh.
 #
 # A maintainer can exempt a task by adding its slug to
 # ci_checks/resource-exceptions.txt, with a one-line reason.

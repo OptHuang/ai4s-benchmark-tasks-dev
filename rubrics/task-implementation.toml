@@ -172,7 +172,7 @@ RUN pip install --no-cache-dir pytest==8.4.1 pytest-json-ctrf==0.3.5
 pytest --ctrf /logs/verifier/ctrf.json /tests/test_state.py -rA
 ```
 
-Note the shape: the tooling is installed at image build time, not fetched when the verifier runs. Terminal-Bench-Science pins these two packages benchmark-wide ([check-pytest-version](#check-pytest-version)) and forbids installing them at trial time ([check-verifier-tooling-baked](#check-verifier-tooling-baked)), so a `uvx --with pytest==...` one-liner in `test.sh` — the form this pattern is usually written in elsewhere — fails both static checks here. Judge the report, not the invocation: a task that emits CTRF from a baked pytest satisfies this criterion however it spells the call.
+Note the shape: the tooling is installed at image build time, not fetched when the verifier runs. This benchmark pins these two packages benchmark-wide ([check-pytest-version](#check-pytest-version)) and forbids installing them at trial time ([check-verifier-tooling-baked](#check-verifier-tooling-baked)), so a `uvx --with pytest==...` one-liner in `test.sh` — the form this pattern is usually written in elsewhere — fails both static checks here. Judge the report, not the invocation: a task that emits CTRF from a baked pytest satisfies this criterion however it spells the call.
 
 Judge appropriateness by the shape of the verification, not the tool currently used:
 
@@ -226,7 +226,7 @@ description = "Consistent results across runs with pinned dependencies and no li
 guidance = """
 Tasks must produce consistent results across runs. All Python/pip dependencies should be pinned to specific versions. Apt packages should not be pinned. Tasks must not depend on live external services, APIs, or network resources that could change or become unavailable.
 
-Fetching pinned data at image build time is not such a dependency, and must not be failed as one. Inputs over 100 MB cannot be committed to git, and CONTRIBUTING.md's "Large data files" section prescribes pulling them from a dataset host during the build; merged tasks in this benchmark do exactly that. What distinguishes this from a live service is that the bytes are fixed by the image definition rather than by whatever the remote happens to serve. Look for the two locks: an immutable revision (a full commit SHA, not a branch or tag) written as a literal rather than a build argument, so no `--build-arg` can redirect the build; and a checksum of the fetched files verified during the build, so a host that served different bytes under that revision fails the build instead of silently changing the task. With both present, the build either reproduces the exact bytes the task was calibrated on or it fails loudly, which is the property this criterion exists to protect.
+Fetching pinned data at image build time is not such a dependency, and must not be failed as one. Inputs over 100 MB cannot be committed to git and have to be pulled from a dataset host during the build. What distinguishes this from a live service is that the bytes are fixed by the image definition rather than by whatever the remote happens to serve. Look for the two locks: an immutable revision (a full commit SHA, not a branch or tag) written as a literal rather than a build argument, so no `--build-arg` can redirect the build; and a checksum of the fetched files verified during the build, so a host that served different bytes under that revision fails the build instead of silently changing the task. With both present, the build either reproduces the exact bytes the task was calibrated on or it fails loudly, which is the property this criterion exists to protect.
 
 Availability is a real but separate concern, and it is a hosting question rather than a reproducibility one: prefer data on an account the project controls over a contributor's personal account. Raise that as a note, not as a failure of this criterion.
 
@@ -303,7 +303,7 @@ PASS if the task requires multi-step interaction with the environment and cannot
 name = "reviewable"
 description = "Non-specialist reviewers can verify task correctness, or sufficient scientific explanation is provided"
 guidance = """
-A non-specialist reviewer should be able to verify that the task is correct — that the instruction, tests, solution, and environment are consistent and make sense. Since TB-Science tasks inherently require domain expertise, the contributor must provide sufficient scientific context and explanation for reviewers to evaluate correctness.
+A non-specialist reviewer should be able to verify that the task is correct — that the instruction, tests, solution, and environment are consistent and make sense. Since AI4S tasks inherently require domain expertise, the contributor must provide sufficient scientific context and explanation for reviewers to evaluate correctness.
 
 Tasks with specialized ground truth should derive expected answers from solution scripts rather than hardcoding them, so reviewers can verify the process even without domain expertise. Hardcoded expected values without derivation are a red flag. Scientific assumptions, methods, and expected outputs should be explained clearly enough for a technically literate non-specialist to follow.
 
@@ -377,7 +377,7 @@ Verifiers that execute agent-produced artifacts must:
 4. **In-process imports count.** If pytest imports agent modules, either the whole pytest run executes unprivileged, or agent code is isolated via per-test fork workers, deferred/lazy imports, or a subprocess proxy — agent code must not run in a root test process.
 5. **Process hygiene.** Capture the child's output to temp files rather than pipes (a daemonized grandchild holding the pipe open deadlocks the harness) and kill the child's process group after the run.
 
-Evidence that the hardening works is worth asking for on tasks in this category: a `/cheat` trial (the adversarial run described in [TASK_REVIEW_AUTOMATION.md](TASK_REVIEW_AUTOMATION.md#cheat-trials)) that scores reward 0, or a note in `verification_explanation` describing a poisoned artifact — one that daemonizes and does no real work — being tried against the verifier.
+Evidence that the hardening works is worth asking for on tasks in this category: an adversarial cheat trial (an agent run instructed to game the verifier) that scores reward 0, or a note in `verification_explanation` describing a poisoned artifact — one that daemonizes and does no real work — being tried against the verifier.
 
 Reading or parsing agent-produced files (checking output contents, diffing state, recomputing expected values) is not execution — this criterion concerns verifiers that run agent code.
 
@@ -563,7 +563,7 @@ The standard task directories are defined by who executes their contents: enviro
 
 The optional authoring/ directory is that home. Harbor builds the agent environment from environment/ and the verifier from tests/, and bind-mounts only trial-local directories, so nothing in authoring/ is ever mounted into a container. Its contents are sorted into two subdirectories: authoring/provenance/ for material that records what happened (generators, manifests, digests, raw tool output) and authoring/evidence/ for material that tests whether the result is right (independent reimplementations, contract tests, sensitivity studies). The boundary is genuinely fuzzy in places, so reviewers should not fault a contributor for filing something under the other one, or for adding a third subdirectory when neither fits.
 
-One file legitimately sits loose at authoring/ root rather than under either subdirectory: authoring/hint.md, the author's numbered hints for a reviewer's `/run hints`. Do not fault a task for having one, for it not being under provenance/ or evidence/, or for nothing in the task referencing it — nothing is meant to. It is also the one exception to the paragraph above, and the exception is not a mount: on a `/run hints` the CI workflow appends its text to instruction.md in the checked-out tree before harbor starts, so the hints reach the agent on a reviewer's explicit request and never on an ordinary run. Judge its content only for the obvious failure — a hint that hands over the answer rather than the approach makes the hinted run measure nothing.
+One file legitimately sits loose at authoring/ root rather than under either subdirectory: authoring/hint.md, the author's numbered hints for a reviewer's diagnostic run. Do not fault a task for having one, for it not being under provenance/ or evidence/, or for nothing in the task referencing it — nothing is meant to. It is also the one exception to the paragraph above, and the exception is not a mount: for a diagnostic run a reviewer appends its text to instruction.md in a local copy before harbor starts, so the hints reach the agent on a reviewer's explicit request and never on an ordinary run. Judge its content only for the obvious failure — a hint that hands over the answer rather than the approach makes the hinted run measure nothing.
 
 Narrative belongs in README.md. authoring/evidence/ is for evidence that is code or data.
 
@@ -680,11 +680,9 @@ fault one for omitting it.
 - allow_internet (deprecated in harbor 0.20 in favour of network_mode, which
   supersedes it; still accepted but warns on load, so do not fault a task for
   using network_mode instead)
-- backend (tb-science-specific, optional: names the execution backend for
-  /validate, /oracle, /run and /cheat — normally "hosted" (Harbor Hub) or "modal"
-  for tasks that exceed the GitHub runner's ~4 CPUs / ~16 GB, and required for any
-  task with gpus >= 1
-  because the runner has no GPU. Harbor itself ignores it; do not fault a task for
+- backend (repository-specific, optional: names the execution backend a task
+  needs beyond the GitHub runner's ~4 CPUs / ~16 GB; required for any task with
+  gpus >= 1 because the runner has no GPU. Harbor itself ignores it; do not fault a task for
   setting it, and do not fault a task for omitting it when gpus = 0.)
 - validate_env (the former name of backend; still accepted, equivalent, and not a
   fault — older task PRs use it)
@@ -707,6 +705,6 @@ description = "Task directory contains only files needed to build, run, solve, o
 guidance = """
 The task directory should contain only the files required to build the environment, run the task, provide the reference solution, and verify the result.
 
-A file is necessary only if something references or requires it: it is copied by a Dockerfile, named in the instruction, used by `solution/solve.sh`, consumed by the tests, or is a required task scaffold file (`task.toml`, `instruction.md`, `environment/Dockerfile`, `solution/solve.sh`, `tests/`). Files that fixtures or data legitimately need at runtime are necessary even if not named directly in prose. A `LICENSE.md` file (or `LICENSE`/`LICENSE.txt`) is always allowed as an exception even if nothing references it, and so is `authoring/hint.md`, which is deliberately referenced by nothing in the task and is attached to the instruction only by CI on a reviewer's `/run hints`.
+A file is necessary only if something references or requires it: it is copied by a Dockerfile, named in the instruction, used by `solution/solve.sh`, consumed by the tests, or is a required task scaffold file (`task.toml`, `instruction.md`, `environment/Dockerfile`, `solution/solve.sh`, `tests/`). Files that fixtures or data legitimately need at runtime are necessary even if not named directly in prose. A `LICENSE.md` file (or `LICENSE`/`LICENSE.txt`) is always allowed as an exception even if nothing references it, and so is `authoring/hint.md`, which is deliberately referenced by nothing in the task and is attached to the instruction only for a reviewer's diagnostic run.
 
 PASS if every file in the task directory is required to build, run, solve, or verify the task, or is a required scaffold file, or is a `LICENSE.md` or `authoring/hint.md` file. FAIL if the directory contains editor/OS cruft, scratch or debug leftovers, backup/duplicate copies, or data/assets that nothing references."""

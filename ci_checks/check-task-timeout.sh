@@ -1,21 +1,13 @@
 #!/bin/bash
 # Timeouts in task.toml.
 #
-# [agent] timeout_sec MUST BE EXACTLY 8h (28800 sec), the budget every published
-# task is run with. 8h was chosen from measurement: real agent trials top out at
-# 5h25m across 472 samples, so the budget sits at roughly 1.5x the observed
-# maximum with room for an unmeasured task or a slower model. A task that
-# genuinely needs more than 8h is a scoping problem, not a timeout problem.
-#
-# It used to be capped at 5h for new tasks (an "authoring cap"), because /run
-# trials ran on GitHub runners, which kill a job at 6h, so an 8h budget could not
-# be reviewed; the suite was then lifted to 8h in bulk before each release, with
-# the lifted slugs recorded in timeout-lifted-tasks.txt. That cap went when
-# /run moved to Harbor Hub (2026-10-20); CPU tasks are back on the runner since
-# 2026-10-27 (GPU tasks stay hosted), where a trial past ~6h is killed, but real
-# trials top out at 5h25m, so every task is still authored, reviewed and
-# released at the same 8h (/run env=hosted for one that needs the full budget). A shorter budget is not allowed either: /run would
-# then measure a different task from the one the release runs.
+# [agent] timeout_sec MUST BE EXACTLY 8h (28800 sec), the budget every task is
+# authored, reviewed and evaluated with. The figure comes from
+# Terminal-Bench-Science, where real agent trials topped out at 5h25m across 472
+# samples, so the budget sits at roughly 1.5x the observed maximum. A task that genuinely needs
+# more than 8h is a scoping problem, not a timeout problem. A shorter budget is
+# not allowed either: trials would then measure a different task from the one
+# that is released.
 #
 # [verifier] timeout_sec may be anything up to the same 8h.
 #
@@ -106,7 +98,7 @@ if [ $FAILED -eq 1 ]; then
     echo "Some task.toml files have the wrong timeouts."
     echo ""
     echo "  [agent] timeout_sec must be exactly ${REQUIRED_AGENT_SEC} (8h): every task is"
-    echo "  authored, reviewed (/run on Harbor Hub) and released with the same budget."
+    echo "  authored, reviewed and evaluated with the same budget."
     echo "  [verifier] timeout_sec may be up to ${MAX_TIMEOUT_SEC} (8h)."
     echo ""
     echo "Note check-instruction-suffix.sh requires instruction.md to state the same"
