@@ -25,8 +25,9 @@ jobs:
           fi
       - name: Validator regression tests
         run: |
-          bash scripts/test_validators.sh
-          bash scripts/test_task_gateways.sh
+          for test in scripts/test_*.sh; do
+            bash "$test"
+          done
       - name: Formal task checks
         run: |
           while IFS= read -r task_file; do

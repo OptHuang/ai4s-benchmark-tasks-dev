@@ -22,12 +22,15 @@ Checked, per trial:
                dict with more than one key (harbor/utils/pass_at_k.py).
   ctrf.json    exists, parses, and conforms to the Common Test Report Format envelope that
                `pytest --ctrf` emits: results.summary counts that agree with each other and
-               with results.tests, and per-test name/status entries. This is the file the
-               harbor viewer renders and that cross-task review tooling reads, so a
-               malformed one is silently useless rather than loudly broken.
+               with the per-test statuses in results.tests, and per-test name/status
+               entries. This is the file the harbor viewer renders and that cross-task
+               review tooling reads, so a malformed one is silently useless rather than
+               loudly broken.
 
-  details      when requested, reward-details.json exists and its boolean `valid` and
-               `match_sota` fields equal the task-type-specific expectations.
+  details      when requested, reward-details.json exists, its boolean `valid` and
+               `match_sota` fields equal the task-type-specific expectations, its
+               `reward` equals reward.txt, and a valid result carries finite numeric
+               `scientific_score` and `improvement_over_sota`.
 
   cross-check  the reward agrees with the report: reward 1 requires no failed tests, while
                reward 0 requires at least one failed gating test. For a frontier oracle,
@@ -39,6 +42,7 @@ Usage:
 """
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -133,15 +137,22 @@ def check_ctrf(trial, required, fails):
         fails.append(
             f"{trial.name}: ctrf.json lists {len(tests)} test(s) but its summary says "
             f"{summary['tests']}")
+    statuses = []
     for index, test in enumerate(tests):
         if not isinstance(test, dict) or not test.get("name"):
             fails.append(f"{trial.name}: ctrf.json test #{index} has no `name`")
-            break
-        if test.get("status") not in ("passed", "failed", "skipped", "pending", "other"):
+            return summary
+        if test.get("status") not in COUNT_KEYS[1:]:
             fails.append(
                 f"{trial.name}: ctrf.json test {test.get('name')!r} has status "
                 f"{test.get('status')!r}, which is not a CTRF status")
-            break
+            return summary
+        statuses.append(test["status"])
+    for key in COUNT_KEYS[1:]:
+        if statuses.count(key) != summary[key]:
+            fails.append(
+                f"{trial.name}: ctrf.json summary says {key}={summary[key]} but "
+                f"{statuses.count(key)} test(s) in results.tests have that status")
     if summary["tests"] == 0:
         fails.append(f"{trial.name}: ctrf.json reports zero tests")
     return summary
@@ -161,7 +172,11 @@ def cross_check(trial, reward, summary, fails):
             "reward and the test report disagree")
 
 
-def check_details(trial, expected_valid, expected_match_sota, fails):
+def is_finite_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def check_details(trial, reward, expected_valid, expected_match_sota, fails):
     if expected_valid is None and expected_match_sota is None:
         return
     path = trial / "verifier" / "reward-details.json"
@@ -183,10 +198,24 @@ def check_details(trial, expected_valid, expected_match_sota, fails):
             fails.append(
                 f"{trial.name}: reward-details.json has {field}={payload.get(field)!r}, "
                 f"expected {expected!r}")
-    if expected_valid is True:
-        for field in ("scientific_score", "improvement_over_sota", "reward"):
+    if "reward" not in payload:
+        fails.append(f"{trial.name}: reward-details.json is missing reward")
+    elif payload["reward"] not in (0, 1) or isinstance(payload["reward"], bool):
+        fails.append(
+            f"{trial.name}: reward-details.json has reward={payload['reward']!r}, "
+            "which is not 0 or 1")
+    elif reward is not None and payload["reward"] != reward:
+        fails.append(
+            f"{trial.name}: reward-details.json has reward={payload['reward']!r} but "
+            f"reward.txt holds {reward:g} -- the two reward records disagree")
+    if payload.get("valid") is True:
+        for field in ("scientific_score", "improvement_over_sota"):
             if field not in payload:
                 fails.append(f"{trial.name}: reward-details.json is missing {field}")
+            elif not is_finite_number(payload[field]):
+                fails.append(
+                    f"{trial.name}: reward-details.json has {field}={payload[field]!r}; "
+                    "a valid result needs a finite number")
 
 
 def parse_bool(value):
@@ -222,6 +251,7 @@ def main(argv=None):
         cross_check(trial, reward, summary, fails)
         check_details(
             trial,
+            reward,
             parse_bool(args.expect_valid) if args.expect_valid is not None else None,
             parse_bool(args.expect_match_sota) if args.expect_match_sota is not None else None,
             fails,
