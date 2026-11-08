@@ -28,7 +28,13 @@ ENGINEERING_DISCIPLINES = {
 }
 TASK_TYPES = {"workflow_automation", "frontier_research"}
 REQUIRED_SECTIONS = tuple(range(0, 9))
-PLACEHOLDER = re.compile(r"(?i)(\bTODO\b|REPLACE WITH|replace-domain|<[^>]+>)")
+# Template prompts and <kebab-case> tokens only: scientific prose legitimately
+# uses "<" and ">" for inequalities, arrows and HTML such as <sup>.
+PLACEHOLDER = re.compile(
+    r"(?i:\bTODO\b|REPLACE WITH|replace-domain|请在此(?:用自然语言)?回答|请填写标题"
+    r"|Please answer here|Enter title)"
+    r"|<[a-z0-9]+(?:-[a-z0-9]+)+>"
+)
 
 
 def metadata_value(text: str, english_label: str) -> str | None:
@@ -88,8 +94,9 @@ def validate(path: Path, repo_root: Path) -> list[str]:
         elif not parsed[number]:
             errors.append(f"Section {number} is empty")
 
-    if PLACEHOLDER.search(text):
-        errors.append("Proposal still contains TODO/template placeholders")
+    placeholder = PLACEHOLDER.search(text)
+    if placeholder:
+        errors.append(f"Proposal still contains template placeholder text: {placeholder.group(0)!r}")
 
     if path.name != "TEMPLATE.md" and "examples" not in path.parts:
         try:
